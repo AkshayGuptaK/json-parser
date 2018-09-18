@@ -1,5 +1,6 @@
+const fs = require('fs')
+
 function valueParser (input) {
-  input = input.replace(/ /g, '') // removes all whitespace from input
   let returned = null
   let value
   const parsers = [nullParser, booleanParser, numberParser, stringParser, arrayParser, objectParser]
@@ -13,28 +14,26 @@ function valueParser (input) {
   }
   if (returned === null) {
     throw new TypeError()
-  } else if (input === '') {
-    return [value, input]
   } else {
-    throw new TypeError()
+    return [value, input]
   }
 }
 
 function nullParser (input) {
-  if (input.startsWith('null')) {
-    return [null, input.slice(4)]
-  } else {
+  let result = /^null/.exec(input)
+  if (result === null) {
     return null
+  } else {
+    return [null, input.slice(4)]
   }
 }
 
 function booleanParser (input) {
-  if (input.startsWith('true')) {
-    return [true, input.slice(4)]
-  } else if (input.startsWith('false')) {
-    return [false, input.slice(5)]
-  } else {
+  let result = /^(true|false)/.exec(input)
+  if (result === null) {
     return null
+  } else {
+    return [result[1] === 'true', input.slice(result[0].length)]
   }
 }
 
@@ -80,11 +79,11 @@ function numberParser (input) {
 }
 
 function stringParser (input) {
-  let result = /^"([^"\\]|\\["/\\bfnrt]|\\u[a-fA-F0-9]{4})*"/.exec(input)
+  let result = /^"(([^"\\]|\\["/\\bfnrt]|\\u[a-fA-F0-9]{4})*)"/.exec(input)
   if (result === null) {
     return null
   }
-  return [result[0].replace(/"/g, ''), input.slice(result[0].length)]
+  return [result[1], input.slice(result[0].length)]
 }
 
 function arrayParser (input) {
@@ -94,27 +93,28 @@ function arrayParser (input) {
   let result = []
   let value
 
-  if (processString[0] !== '[') {
-    return null
-  } processString = processString.replace('[', '')
-  while (processString[0] !== ']') {
-    if (requiringEnd) {
+  if (/^\s*\[/.test(input)) {
+    processString = processString.replace(/\s*\[\s*/, '')
+    while (/^\s*]/.test(processString) === false) {
+      if (requiringEnd) {
+        throw new TypeError()
+      }
+      [value, processString] = valueParser(processString)
+      result.push(value)
+      if (/^\s*,/.test(processString)) {
+        processString = processString.replace(/\s*,\s*/, '')
+        permittingEnd = false
+        requiringEnd = false
+      } else {
+        permittingEnd = true
+        requiringEnd = true
+      }
+    } if (permittingEnd === false) {
       throw new TypeError()
-    }
-    [value, processString] = valueParser(processString)
-    result.push(value)
-    if (processString[0] === ',') {
-      processString = processString.replace(',', '')
-      permittingEnd = false
-      requiringEnd = false
-    } else {
-      permittingEnd = true
-      requiringEnd = true
-    }
-  } if (permittingEnd === false) {
-    throw new TypeError()
+    } return [result, processString.replace(/^\s*]\s*/, '')]
+  } else {
+    return null
   }
-  return [result, processString.replace(']', '')]
 }
 
 function objectParser (input) {
@@ -125,33 +125,34 @@ function objectParser (input) {
   let key = ''
   let value
 
-  if (processString[0] !== '{') {
+  if (/^\s*{/.test(input)) {
+    processString = processString.replace(/\s*{\s*/, '')
+    while (/^\s*}/.test(processString) === false) {
+      if (requiringEnd) {
+        throw new TypeError()
+      }
+      [key, processString] = stringParser(processString)
+      if (/^\s*:/.test(processString)) {
+        processString = processString.replace(/\s*:\s*/, '')
+      } else {
+        throw new TypeError()
+      }
+      [value, processString] = valueParser(processString)
+      result[key] = value
+      if (/^\s*,/.test(processString)) {
+        processString = processString.replace(/\s*,\s*/, '')
+        permittingEnd = false
+        requiringEnd = false
+      } else {
+        requiringEnd = true
+        permittingEnd = true
+      }
+    } if (permittingEnd === false) {
+      throw new TypeError()
+    } return [result, processString.replace(/^\s*}\s*/, '')]
+  } else {
     return null
   }
-  processString = processString.replace('{', '')
-
-  while (processString[0] !== '}') {
-    if (requiringEnd) {
-      throw new TypeError()
-    }
-    [key, processString] = stringParser(processString)
-    if (processString[0] === ':') {
-      processString = processString.replace(':', '')
-    } else {
-      throw new TypeError()
-    }
-    [value, processString] = valueParser(processString)
-    result[key] = value
-    if (processString[0] === ',') {
-      processString = processString.replace(',', '')
-      permittingEnd = false
-      requiringEnd = false
-    } else {
-      requiringEnd = true
-      permittingEnd = true
-    }
-  } if (permittingEnd === false) {
-    throw new TypeError()
-  }
-  return [result, processString.replace('}', '')]
 }
+
+let jsonString = fs.readFileSync('', 'utf8')
