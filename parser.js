@@ -155,4 +155,5 @@ function objectParser (input) {
   }
 }
 
-let jsonString = fs.readFileSync('', 'utf8')
+let jsonString = fs.readFileSync('./json.txt', 'utf8')
+console.log(valueParser(jsonString))
